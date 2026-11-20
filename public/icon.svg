@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background kotak rounded gelap -->
+  <rect width="512" height="512" rx="112" fill="#1a1412" />
+  <!-- Gagang cangkir oranye -->
+  <path d="M356 232h34c26 0 46 20 46 46v20c0 26-20 46-46 46h-34" fill="none" stroke="#e58a2e" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- Badan cangkir & telinga kucing krem -->
+  <path d="M144 164l34 42c24-12 52-18 82-18s58 6 82 18l34-42v124c0 68-52 120-116 120s-116-52-116-120V164z" fill="#2a211d" stroke="#f5efe6" stroke-width="26" stroke-linejoin="round" />
+  <!-- Mata -->
+  <circle cx="218" cy="258" r="14" fill="#f5efe6" />
+  <circle cx="302" cy="258" r="14" fill="#f5efe6" />
+  <!-- Senyum oranye -->
+  <path d="M226 298c18 18 50 18 68 0" fill="none" stroke="#e58a2e" stroke-width="24" stroke-linecap="round" />
+</svg>

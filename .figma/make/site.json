@@ -1,0 +1,10 @@
+{
+  "description": "A personal web app for organizing information and completing everyday tasks more efficiently.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

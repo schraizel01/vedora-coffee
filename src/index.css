@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --color-bg-base: #14100d;
+  --color-bg-surface: #1e1813;
+  --color-bg-elevated: #2a2119;
+  --color-border-subtle: #3a2e24;
+  --color-brown-500: #6f4e37;
+  --color-brown-300: #a67c5b;
+  --color-accent-500: #e58a33;
+  --color-accent-600: #c96f1f;
+  --color-accent-200: #f4c28a;
+  --color-text-primary: #f3e9dc;
+  --color-text-secondary: #b9a898;
+  --color-text-muted: #8a7b6c;
+  --color-on-accent: #1a120b;
+  --color-status-success: #6fa876;
+  --color-status-warning: #e0b04a;
+  --color-status-danger: #d2593f;
+  --color-status-info: #7fa4c2;
+
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@layer base {
+  html {
+    background-color: #14100d;
+    color: #f3e9dc;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #14100d;
+    color: #f3e9dc;
+    font-size: 16px;
+    line-height: 26px;
+    overflow-x: hidden;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
