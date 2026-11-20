@@ -126,8 +126,10 @@ app.post('/api/reservations', async (req, res) => {
   res.status(201).json(data[0]);
 });
 
-app.listen(PORT, () => {
-  console.log(`Server Vedora API berjalan di http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server Vedora API berjalan di http://localhost:${PORT}`);
+  });
+}
 
 export default app;
