@@ -439,7 +439,7 @@ export const ReservationPage = () => {
     React.createElement(
       'div',
       {
-        className: 'max-w-2xl mx-auto px-4 sm:px-6 pt-5 pb-28 lg:pb-12',
+        className: 'max-w-2xl mx-auto px-4 sm:px-6 pt-5 pb-40 lg:pb-12',
         __self: this,
         __source: { fileName: _jsxFileName, lineNumber: 205 },
       },
@@ -1058,12 +1058,12 @@ export const ReservationPage = () => {
               )
             ),
 
-            /* Mobile Sticky Submit */
+            /* Mobile Sticky Submit (ditempatkan tepat di atas Bottom Navigation Bar) */
             React.createElement(
               'div',
               {
                 className:
-                  'lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-bg-surface/95 backdrop-blur-md border-t border-border-subtle px-4 py-3 pb-safe',
+                  'lg:hidden fixed bottom-[64px] left-0 right-0 z-40 bg-bg-surface/95 backdrop-blur-md border-t border-border-subtle px-4 py-3',
                 __self: this,
                 __source: { fileName: _jsxFileName, lineNumber: 457 },
               },
