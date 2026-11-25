@@ -289,7 +289,7 @@ export const AppProvider = ({ children }) => {
       if (catalog.reviews) setReviews(catalog.reviews.map(mapReview));
 
       if (authUser) {
-        const [profRes, resvRes, favMenuRes, favCatRes] = await Promise.all([
+        const [profRes, resvRes, favMenuRes, favCatRes, myReviewsRes] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', authUser.id).single(),
           supabase
             .from('reservations')
@@ -298,7 +298,20 @@ export const AppProvider = ({ children }) => {
             .order('reservation_time', { ascending: false }),
           supabase.from('favorite_menus').select('menu_item_id').eq('user_id', authUser.id),
           supabase.from('favorite_cats').select('cat_id').eq('user_id', authUser.id),
+          supabase
+            .from('reviews')
+            .select('*, author:profiles!reviews_user_id_fkey(name)')
+            .eq('user_id', authUser.id)
+            .order('created_at', { ascending: false }),
         ]);
+
+        if (myReviewsRes.data) {
+          const userReviews = myReviewsRes.data.map(mapReview);
+          setReviews((prev) => {
+            const otherReviews = prev.filter((r) => r.userId !== authUser.id);
+            return [...userReviews, ...otherReviews];
+          });
+        }
 
         if (profRes.data) {
           const p = profRes.data;
@@ -569,9 +582,11 @@ export const AppProvider = ({ children }) => {
     showToast('Reservasi berhasil dibatalkan', 'info');
   };
 
-  // ==================== REVIEWS ====================
+  // ==================== REVIEWS (MULTI-REVIEW PER AKUN) ====================
   const submitReview = async (rating, comment) => {
-    if (!requireOnline() || !currentUser) return;
+    if (!requireOnline() || !currentUser) {
+      return { ok: false, error: 'Butuh koneksi internet dan akun aktif' };
+    }
     const { data, error } = await supabase
       .from('reviews')
       .insert({
@@ -584,11 +599,8 @@ export const AppProvider = ({ children }) => {
       .single();
 
     if (error) {
-      const msg = error.code === '23505'
-        ? 'Kamu sudah pernah mengirim ulasan'
-        : error.message;
-      showToast(msg, 'error');
-      return;
+      showToast('Gagal mengirim ulasan: ' + error.message, 'error');
+      return { ok: false, error: error.message };
     }
 
     const newReview = {
@@ -598,10 +610,11 @@ export const AppProvider = ({ children }) => {
       rating: data.rating,
       comment: data.comment,
       status: 'pending',
-      createdAt: data.created_at.slice(0, 10),
+      createdAt: (data.created_at || new Date().toISOString()).slice(0, 10),
     };
     setReviews((prev) => [newReview, ...prev]);
     showToast('Ulasan dikirim dan menunggu moderasi admin', 'success');
+    return { ok: true, review: newReview };
   };
 
   // ==================== ADMIN: MENU & CATEGORIES ====================
