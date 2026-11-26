@@ -22,7 +22,7 @@ function _optionalChain(ops) {
 }
 import React, { useMemo, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { CheckCircle2, Copy, Minus, Plus, WifiOff } from 'lucide-react';
+import { CheckCircle2, Copy, Minus, Plus, Ticket, WifiOff } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 import {
@@ -38,8 +38,15 @@ import { CustomerLayout } from '../../components/CustomerLayout';
 import { Badge, Button, EmptyState } from '../../components/ui';
 
 export const ReservationPage = () => {
-  const { currentUser, cafeInfo, isOnline, getSlotBookedGuests, createReservation, showToast } =
-    useApp();
+  const {
+    currentUser,
+    cafeInfo,
+    isOnline,
+    getSlotBookedGuests,
+    createReservation,
+    createOfflineReservation,
+    showToast,
+  } = useApp();
   const location = useLocation();
 
   const todayISO = getTodayISO();
@@ -82,7 +89,9 @@ export const ReservationPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [successRes, setSuccessRes] = useState(null);
 
-  if (!currentUser) {
+  // Jika ONLINE tapi belum login, arahkan ke halaman masuk.
+  // Jika OFFLINE, tamu umum boleh langsung reservasi tanpa login!
+  if (isOnline && !currentUser && !successRes) {
     return React.createElement(Navigate, {
       to: '/masuk',
       replace: true,
@@ -131,6 +140,29 @@ export const ReservationPage = () => {
     return slots;
   }, [activeDateObj, cafeInfo, durationMinutes, guests, todayISO, getSlotBookedGuests]);
 
+  // Submit khusus mode OFFLINE (Hanya Nama & Nomor Telepon, tanpa login)
+  const handleOfflineSubmit = (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    if (!customerName.trim() || customerPhone.trim().length < 8) {
+      setSlotError('Harap isi nama lengkap dan nomor telepon yang valid.');
+      return;
+    }
+
+    setSlotError('');
+    setSubmitting(true);
+    try {
+      const res = createOfflineReservation(customerName, customerPhone);
+      if (res?.ok) {
+        setSuccessRes(res.reservation);
+        showToast('Tiket pemesanan offline berhasil dibuat!', 'success');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Submit mode ONLINE
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -164,34 +196,40 @@ export const ReservationPage = () => {
     }
   };
 
+  // ==================== TAMPILAN TIKET BERHASIL ====================
   if (successRes) {
+    const isOfflineTicket = Boolean(successRes.isOffline);
     return React.createElement(
       CustomerLayout,
       { __self: this, __source: { fileName: _jsxFileName, lineNumber: 122 } },
       React.createElement(
         'div',
         {
-          className: 'max-w-lg mx-auto px-4 sm:px-6 py-10',
+          className: 'max-w-lg mx-auto px-4 sm:px-6 pt-8 pb-28 lg:py-10',
           __self: this,
           __source: { fileName: _jsxFileName, lineNumber: 123 },
         },
         React.createElement(
           'div',
           {
-            className:
-              'bg-bg-surface border border-border-subtle rounded-[16px] p-6 sm:p-8 text-center space-y-6',
+            className: `bg-bg-surface border ${
+              isOfflineTicket ? 'border-dashed border-accent-500/70' : 'border-border-subtle'
+            } rounded-[20px] p-6 sm:p-8 text-center space-y-6 relative overflow-hidden`,
             __self: this,
             __source: { fileName: _jsxFileName, lineNumber: 124 },
           },
           React.createElement(
             'div',
             {
-              className:
-                'w-16 h-16 rounded-full bg-status-success/16 text-status-success flex items-center justify-center mx-auto',
+              className: `w-16 h-16 rounded-full ${
+                isOfflineTicket
+                  ? 'bg-accent-500/16 text-accent-500'
+                  : 'bg-status-success/16 text-status-success'
+              } flex items-center justify-center mx-auto`,
               __self: this,
               __source: { fileName: _jsxFileName, lineNumber: 125 },
             },
-            React.createElement(CheckCircle2, {
+            React.createElement(isOfflineTicket ? Ticket : CheckCircle2, {
               className: 'w-9 h-9',
               strokeWidth: 1.75,
               __self: this,
@@ -208,7 +246,7 @@ export const ReservationPage = () => {
             React.createElement(
               Badge,
               { tone: 'warning', __self: this, __source: { fileName: _jsxFileName, lineNumber: 129 } },
-              'Menunggu konfirmasi'
+              isOfflineTicket ? 'Tiket Pemesanan Offline · Menunggu Approval' : 'Menunggu konfirmasi'
             ),
             React.createElement(
               'h1',
@@ -218,7 +256,7 @@ export const ReservationPage = () => {
                 __self: this,
                 __source: { fileName: _jsxFileName, lineNumber: 130 },
               },
-              'Reservasi Terkirim'
+              isOfflineTicket ? 'Tiket Pemesanan Offline' : 'Reservasi Terkirim'
             ),
             React.createElement(
               'p',
@@ -227,14 +265,18 @@ export const ReservationPage = () => {
                 __self: this,
                 __source: { fileName: _jsxFileName, lineNumber: 133 },
               },
-              'Admin akan mengonfirmasi reservasimu. Cek statusnya di Akun Saya.'
+              isOfflineTicket
+                ? 'Tunjukkan tiket ini ke kasir/admin Vedora Coffee untuk dikonfirmasi. Data otomatis tersinkron ke server saat online.'
+                : 'Admin akan mengonfirmasi reservasimu. Cek statusnya di Akun Saya.'
             )
           ),
 
+          /* Kotak Kode Tiket */
           React.createElement(
             'div',
             {
-              className: 'p-4 rounded-[12px] bg-bg-elevated border border-border-subtle',
+              className:
+                'p-4 rounded-[14px] bg-bg-elevated border border-dashed border-accent-500/50',
               __self: this,
               __source: { fileName: _jsxFileName, lineNumber: 138 },
             },
@@ -245,7 +287,7 @@ export const ReservationPage = () => {
                 __self: this,
                 __source: { fileName: _jsxFileName, lineNumber: 139 },
               },
-              'Kode Booking'
+              isOfflineTicket ? 'Nomor Tiket Offline' : 'Kode Booking'
             ),
             React.createElement(
               'div',
@@ -257,7 +299,7 @@ export const ReservationPage = () => {
               React.createElement(
                 'span',
                 {
-                  className: 'font-mono font-semibold text-[26px] tracking-wider text-accent-500',
+                  className: 'font-mono font-bold text-[28px] tracking-wider text-accent-500',
                   __self: this,
                   __source: { fileName: _jsxFileName, lineNumber: 143 },
                 },
@@ -277,11 +319,11 @@ export const ReservationPage = () => {
                       'call',
                       (_9) => _9(successRes.code),
                     ]);
-                    showToast('Kode booking disalin', 'success');
+                    showToast('Kode tiket disalin', 'success');
                   },
                   className:
                     'w-9 h-9 rounded-[10px] bg-bg-surface border border-border-subtle flex items-center justify-center text-text-secondary hover:text-text-primary cursor-pointer',
-                  'aria-label': 'Salin kode booking',
+                  'aria-label': 'Salin kode tiket',
                   __self: this,
                   __source: { fileName: _jsxFileName, lineNumber: 146 },
                 },
@@ -294,17 +336,38 @@ export const ReservationPage = () => {
             )
           ),
 
+          /* Detail Tiket */
           React.createElement(
             'div',
             {
-              className: 'text-left bg-bg-elevated/60 rounded-[12px] p-4 space-y-2 text-[14px]',
+              className: 'text-left bg-bg-elevated/60 rounded-[12px] p-4 space-y-2.5 text-[14px]',
               __self: this,
               __source: { fileName: _jsxFileName, lineNumber: 160 },
             },
             React.createElement(
               'div',
+              { className: 'flex justify-between gap-2' },
+              React.createElement('span', { className: 'text-text-secondary' }, 'Nama Pemesan'),
+              React.createElement(
+                'span',
+                { className: 'font-semibold text-text-primary text-right' },
+                successRes.customerName
+              )
+            ),
+            React.createElement(
+              'div',
+              { className: 'flex justify-between gap-2' },
+              React.createElement('span', { className: 'text-text-secondary' }, 'Nomor Telepon'),
+              React.createElement(
+                'span',
+                { className: 'font-medium text-text-primary text-right' },
+                successRes.customerPhone
+              )
+            ),
+            React.createElement(
+              'div',
               {
-                className: 'flex justify-between',
+                className: 'flex justify-between gap-2',
                 __self: this,
                 __source: { fileName: _jsxFileName, lineNumber: 161 },
               },
@@ -330,7 +393,7 @@ export const ReservationPage = () => {
             React.createElement(
               'div',
               {
-                className: 'flex justify-between',
+                className: 'flex justify-between gap-2',
                 __self: this,
                 __source: { fileName: _jsxFileName, lineNumber: 167 },
               },
@@ -341,7 +404,7 @@ export const ReservationPage = () => {
                   __self: this,
                   __source: { fileName: _jsxFileName, lineNumber: 168 },
                 },
-                'Jam'
+                'Waktu'
               ),
               React.createElement(
                 'span',
@@ -355,33 +418,34 @@ export const ReservationPage = () => {
                 formatTimeDot(successRes.endTime)
               )
             ),
-            React.createElement(
-              'div',
-              {
-                className: 'flex justify-between',
-                __self: this,
-                __source: { fileName: _jsxFileName, lineNumber: 173 },
-              },
+            !isOfflineTicket &&
               React.createElement(
-                'span',
+                'div',
                 {
-                  className: 'text-text-secondary',
+                  className: 'flex justify-between gap-2',
                   __self: this,
-                  __source: { fileName: _jsxFileName, lineNumber: 174 },
+                  __source: { fileName: _jsxFileName, lineNumber: 173 },
                 },
-                'Jumlah tamu'
-              ),
-              React.createElement(
-                'span',
-                {
-                  className: 'font-medium text-text-primary',
-                  __self: this,
-                  __source: { fileName: _jsxFileName, lineNumber: 175 },
-                },
-                successRes.guests,
-                ' orang'
+                React.createElement(
+                  'span',
+                  {
+                    className: 'text-text-secondary',
+                    __self: this,
+                    __source: { fileName: _jsxFileName, lineNumber: 174 },
+                  },
+                  'Jumlah tamu'
+                ),
+                React.createElement(
+                  'span',
+                  {
+                    className: 'font-medium text-text-primary',
+                    __self: this,
+                    __source: { fileName: _jsxFileName, lineNumber: 175 },
+                  },
+                  successRes.guests,
+                  ' orang'
+                )
               )
-            )
           ),
 
           React.createElement(
@@ -391,19 +455,34 @@ export const ReservationPage = () => {
               __self: this,
               __source: { fileName: _jsxFileName, lineNumber: 179 },
             },
-            React.createElement(
-              Link,
-              { to: '/akun', __self: this, __source: { fileName: _jsxFileName, lineNumber: 180 } },
+            !isOfflineTicket &&
+              React.createElement(
+                Link,
+                { to: '/akun', __self: this, __source: { fileName: _jsxFileName, lineNumber: 180 } },
+                React.createElement(
+                  Button,
+                  {
+                    fullWidth: true,
+                    __self: this,
+                    __source: { fileName: _jsxFileName, lineNumber: 181 },
+                  },
+                  'Lihat di Akun Saya'
+                )
+              ),
+            isOfflineTicket &&
               React.createElement(
                 Button,
                 {
+                  type: 'button',
                   fullWidth: true,
-                  __self: this,
-                  __source: { fileName: _jsxFileName, lineNumber: 181 },
+                  onClick: () => {
+                    setSuccessRes(null);
+                    setCustomerName('');
+                    setCustomerPhone('');
+                  },
                 },
-                'Lihat di Akun Saya'
-              )
-            ),
+                'Buat Tiket Offline Baru'
+              ),
             React.createElement(
               Link,
               { to: '/', __self: this, __source: { fileName: _jsxFileName, lineNumber: 183 } },
@@ -424,6 +503,137 @@ export const ReservationPage = () => {
     );
   }
 
+  // ==================== TAMPILAN FORM MODE OFFLINE (TANPA LOGIN) ====================
+  if (!isOnline) {
+    const canOfflineSubmit =
+      !submitting && customerName.trim().length > 0 && customerPhone.trim().length >= 8;
+
+    return React.createElement(
+      CustomerLayout,
+      { __self: this, __source: { fileName: _jsxFileName, lineNumber: 204 } },
+      React.createElement(
+        'div',
+        {
+          className: 'max-w-xl mx-auto px-4 sm:px-6 pt-5 pb-40 lg:pb-12 space-y-6',
+        },
+        React.createElement(
+          'div',
+          { className: 'space-y-1.5' },
+          React.createElement(
+            'h1',
+            { className: 'font-serif font-semibold text-[31px] leading-[38px] text-text-primary' },
+            'Reservasi Offline'
+          ),
+          React.createElement(
+            'p',
+            { className: 'text-[14px] text-text-secondary' },
+            'Pesan meja langsung tanpa login saat jaringan offline. Tiket akan disimpan dan dikonfirmasi oleh admin.'
+          )
+        ),
+
+        React.createElement(
+          'div',
+          {
+            className:
+              'p-4 rounded-[12px] bg-status-warning/16 border border-status-warning/30 text-status-warning text-[13px] flex items-start gap-3',
+          },
+          React.createElement(WifiOff, { className: 'w-5 h-5 shrink-0 mt-0.5' }),
+          React.createElement(
+            'span',
+            null,
+            'Mode Offline aktif: kamu tidak perlu login. Cukup masukkan nama dan nomor telepon untuk mendapatkan Tiket Pemesanan Offline.'
+          )
+        ),
+
+        slotError &&
+          React.createElement(
+            'div',
+            { className: 'p-3 rounded-[12px] bg-status-danger/16 text-status-danger text-[13px]' },
+            slotError
+          ),
+
+        React.createElement(
+          'form',
+          {
+            onSubmit: handleOfflineSubmit,
+            className: 'bg-bg-surface border border-border-subtle rounded-[16px] p-5 sm:p-6 space-y-4',
+          },
+          React.createElement(
+            'div',
+            null,
+            React.createElement(
+              'label',
+              { className: 'block text-[13px] text-text-secondary mb-1.5' },
+              'Nama lengkap'
+            ),
+            React.createElement('input', {
+              type: 'text',
+              required: true,
+              value: customerName,
+              onChange: (e) => setCustomerName(e.target.value),
+              placeholder: 'Masukkan nama pemesan',
+              className:
+                'w-full h-12 px-4 rounded-[12px] bg-bg-elevated border border-border-subtle text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-500',
+            })
+          ),
+
+          React.createElement(
+            'div',
+            null,
+            React.createElement(
+              'label',
+              { className: 'block text-[13px] text-text-secondary mb-1.5' },
+              'Nomor telepon'
+            ),
+            React.createElement('input', {
+              type: 'tel',
+              required: true,
+              value: customerPhone,
+              onChange: (e) => setCustomerPhone(e.target.value),
+              placeholder: 'Contoh: 081234567890',
+              className:
+                'w-full h-12 px-4 rounded-[12px] bg-bg-elevated border border-border-subtle text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-500',
+            })
+          ),
+
+          /* Desktop Submit */
+          React.createElement(
+            'div',
+            { className: 'hidden lg:block pt-2' },
+            React.createElement(
+              Button,
+              {
+                type: 'submit',
+                fullWidth: true,
+                disabled: !canOfflineSubmit,
+              },
+              submitting ? 'Membuat Tiket...' : 'Reservasi Sekarang'
+            )
+          ),
+
+          /* Mobile Sticky Submit (di atas Bottom Navigation Bar) */
+          React.createElement(
+            'div',
+            {
+              className:
+                'lg:hidden fixed bottom-[64px] left-0 right-0 z-40 bg-bg-surface/95 backdrop-blur-md border-t border-border-subtle px-4 py-3',
+            },
+            React.createElement(
+              Button,
+              {
+                type: 'submit',
+                fullWidth: true,
+                disabled: !canOfflineSubmit,
+              },
+              submitting ? 'Membuat Tiket...' : 'Reservasi Sekarang'
+            )
+          )
+        )
+      )
+    );
+  }
+
+  // ==================== TAMPILAN FORM MODE ONLINE ====================
   const canSubmit =
     isOnline &&
     !submitting &&
@@ -472,27 +682,6 @@ export const ReservationPage = () => {
         )
       ),
 
-      !isOnline &&
-        React.createElement(
-          'div',
-          {
-            className:
-              'mb-6 p-4 rounded-[12px] bg-status-warning/16 border border-status-warning/30 text-status-warning text-[14px] flex items-center gap-3',
-            __self: this,
-            __source: { fileName: _jsxFileName, lineNumber: 217 },
-          },
-          React.createElement(WifiOff, {
-            className: 'w-5 h-5 shrink-0',
-            __self: this,
-            __source: { fileName: _jsxFileName, lineNumber: 218 },
-          }),
-          React.createElement(
-            'span',
-            { __self: this, __source: { fileName: _jsxFileName, lineNumber: 219 } },
-            'Kamu sedang offline. Reservasi butuh koneksi internet.'
-          )
-        ),
-
       allClosed
         ? React.createElement(EmptyState, {
             icon: 'cup',
@@ -505,7 +694,7 @@ export const ReservationPage = () => {
             'form',
             {
               onSubmit: handleSubmit,
-              className: `space-y-7 ${!isOnline ? 'opacity-50 pointer-events-none' : ''}`,
+              className: 'space-y-7',
               __self: this,
               __source: { fileName: _jsxFileName, lineNumber: 230 },
             },
@@ -1058,7 +1247,7 @@ export const ReservationPage = () => {
               )
             ),
 
-            /* Mobile Sticky Submit (ditempatkan tepat di atas Bottom Navigation Bar) */
+            /* Mobile Sticky Submit */
             React.createElement(
               'div',
               {

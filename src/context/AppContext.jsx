@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { timeToMinutes } from '../utils/format';
+import { timeToMinutes, getTodayISO, minutesToColonTime } from '../utils/format';
 
 const CACHE_KEY = 'vedora_coffee_cache_v1';
+const OFFLINE_RES_KEY = 'vedora_offline_reservations_v1';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const DAY_NAMES_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -126,6 +127,7 @@ const mapReservation = (r) => ({
   status: r.status,
   processedBy: r.handler?.name || undefined,
   createdAt: r.created_at,
+  isOffline: false,
 });
 
 const mapReview = (r) => ({
@@ -148,6 +150,19 @@ function loadCachedState() {
   return null;
 }
 
+function loadOfflineReservations() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_RES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return [];
+}
+
 const AppContext = createContext(null);
 
 export const AppProvider = ({ children }) => {
@@ -160,7 +175,8 @@ export const AppProvider = ({ children }) => {
   const [menuItems, setMenuItems] = useState(cached?.menuItems || []);
   const [cats, setCats] = useState(cached?.cats || []);
   const [promos, setPromos] = useState(cached?.promos || []);
-  const [reservations, setReservations] = useState([]);
+  const [dbReservations, setDbReservations] = useState([]);
+  const [offlineReservations, setOfflineReservations] = useState(loadOfflineReservations);
   const [reviews, setReviews] = useState(cached?.reviews || []);
   const [userFavorites, setUserFavorites] = useState({ menuIds: [], catIds: [] });
   const [loading, setLoading] = useState(true);
@@ -174,7 +190,11 @@ export const AppProvider = ({ children }) => {
   const [loginPromptMessage, setLoginPromptMessage] = useState(null);
   const [installBannerDismissed, setInstallBannerDismissed] = useState(false);
 
+  const syncingRef = useRef(false);
   const isOnline = browserOnline && !simulatedOffline;
+
+  // Gabungan reservasi database + reservasi sementara offline
+  const reservations = [...offlineReservations, ...dbReservations];
 
   useEffect(() => {
     try {
@@ -186,6 +206,25 @@ export const AppProvider = ({ children }) => {
       // ignore
     }
   }, [cafeInfo, categories, menuItems, cats, promos, reviews]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(OFFLINE_RES_KEY, JSON.stringify(offlineReservations));
+    } catch (e) {
+      // ignore
+    }
+  }, [offlineReservations]);
+
+  // Sinkronisasi antar tab jika dibuka bersamaan
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === OFFLINE_RES_KEY) {
+        setOfflineReservations(loadOfflineReservations());
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -213,13 +252,13 @@ export const AppProvider = ({ children }) => {
     });
   };
 
-  const showToast = (message, type = 'info', actionLabel, onAction) => {
+  const showToast = useCallback((message, type = 'info', actionLabel, onAction) => {
     const id = 't-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
     setToasts((prev) => [...prev, { id, message, type, actionLabel, onAction }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3400);
-  };
+  }, []);
 
   const dismissToast = (id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -339,14 +378,14 @@ export const AppProvider = ({ children }) => {
           }
         }
 
-        if (resvRes.data) setReservations(resvRes.data.map(mapReservation));
+        if (resvRes.data) setDbReservations(resvRes.data.map(mapReservation));
         setUserFavorites({
           menuIds: (favMenuRes.data || []).map((f) => f.menu_item_id),
           catIds: (favCatRes.data || []).map((f) => f.cat_id),
         });
       } else {
         setCurrentUser(null);
-        setReservations([]);
+        setDbReservations([]);
         setUserFavorites({ menuIds: [], catIds: [] });
       }
     } finally {
@@ -365,6 +404,65 @@ export const AppProvider = ({ children }) => {
 
     return () => listener.subscription.unsubscribe();
   }, [refreshAllData]);
+
+  // ==================== AUTO-SYNC RESERVASI OFFLINE SAAT ONLINE ====================
+  const syncOfflineReservations = useCallback(async () => {
+    if (!isOnline || !currentUser || currentUser.role !== 'admin') return;
+    if (syncingRef.current) return;
+
+    const queue = loadOfflineReservations();
+    if (queue.length === 0) return;
+
+    syncingRef.current = true;
+    try {
+      const syncedIds = [];
+      const insertedRows = [];
+
+      for (const item of queue) {
+        const payload = {
+          code: item.code,
+          user_id: currentUser.id, // Menggunakan ID Admin yang menyinkronkan
+          contact_name: item.customerName,
+          contact_phone: item.customerPhone,
+          reservation_date: item.date,
+          reservation_time: item.startTime,
+          end_time: item.endTime,
+          guest_count: Number(item.guests) || 1,
+          notes: item.notes || 'Reservasi Offline (Walk-in)',
+          status: item.status || 'pending',
+          handled_by: item.status !== 'pending' ? currentUser.id : null,
+        };
+
+        const { data, error } = await supabase
+          .from('reservations')
+          .insert(payload)
+          .select('*, handler:profiles!reservations_handled_by_fkey(name)')
+          .single();
+
+        if (!error && data) {
+          syncedIds.push(item.id);
+          insertedRows.push(mapReservation(data));
+        }
+      }
+
+      if (syncedIds.length > 0) {
+        setOfflineReservations((prev) => prev.filter((r) => !syncedIds.includes(r.id)));
+        setDbReservations((prev) => [...insertedRows, ...prev]);
+        showToast(
+          `${syncedIds.length} reservasi offline berhasil disinkronkan ke database!`,
+          'success'
+        );
+      }
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [isOnline, currentUser, showToast]);
+
+  useEffect(() => {
+    if (isOnline && currentUser?.role === 'admin' && offlineReservations.length > 0) {
+      syncOfflineReservations();
+    }
+  }, [isOnline, currentUser, offlineReservations.length, syncOfflineReservations]);
 
   // ==================== AUTH ====================
   const login = async (email, password) => {
@@ -511,7 +609,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ==================== RESERVATIONS ====================
+  // ==================== RESERVATIONS (ONLINE & OFFLINE GUEST) ====================
   const getSlotBookedGuests = (date, startTime, endTime) => {
     const slotStart = timeToMinutes(startTime);
     const slotEnd = timeToMinutes(endTime);
@@ -524,6 +622,34 @@ export const AppProvider = ({ children }) => {
           timeToMinutes(r.endTime) > slotStart
       )
       .reduce((sum, r) => sum + r.guests, 0);
+  };
+
+  const createOfflineReservation = (customerName, customerPhone) => {
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const duration = Number(cafeInfo.bookingDurationMinutes) || 120;
+    const startTime = minutesToColonTime(nowMins);
+    const endTime = minutesToColonTime(Math.min(23 * 60 + 59, nowMins + duration));
+    const randomCode = 'OFF-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    const offlineTicket = {
+      id: 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      code: randomCode,
+      userId: null,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
+      date: getTodayISO(),
+      startTime,
+      endTime,
+      guests: 1,
+      notes: 'Tiket Pemesanan Offline (Tanpa Login)',
+      status: 'pending',
+      createdAt: now.toISOString(),
+      isOffline: true,
+    };
+
+    setOfflineReservations((prev) => [offlineTicket, ...prev]);
+    return { ok: true, reservation: offlineTicket };
   };
 
   const createReservation = async (data) => {
@@ -560,12 +686,20 @@ export const AppProvider = ({ children }) => {
       notes: data.notes?.trim() || undefined,
       status: 'pending',
       createdAt: new Date().toISOString(),
+      isOffline: false,
     };
-    setReservations((prev) => [newRes, ...prev]);
+    setDbReservations((prev) => [newRes, ...prev]);
     return { ok: true, reservation: newRes };
   };
 
   const cancelMyReservation = async (id) => {
+    if (String(id).startsWith('offline-')) {
+      setOfflineReservations((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: 'cancelled' } : r))
+      );
+      showToast('Reservasi offline dibatalkan (lokal)', 'info');
+      return;
+    }
     if (!requireOnline()) return;
     const { error } = await supabase
       .from('reservations')
@@ -576,13 +710,13 @@ export const AppProvider = ({ children }) => {
       showToast('Gagal membatalkan reservasi', 'error');
       return;
     }
-    setReservations((prev) =>
+    setDbReservations((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: 'cancelled' } : r))
     );
     showToast('Reservasi berhasil dibatalkan', 'info');
   };
 
-  // ==================== REVIEWS (MULTI-REVIEW PER AKUN) ====================
+  // ==================== REVIEWS ====================
   const submitReview = async (rating, comment) => {
     if (!requireOnline() || !currentUser) {
       return { ok: false, error: 'Butuh koneksi internet dan akun aktif' };
@@ -915,10 +1049,31 @@ export const AppProvider = ({ children }) => {
     showToast('Status terbit diperbarui', 'success');
   };
 
-  // ==================== ADMIN: RESERVATIONS & REVIEWS ====================
+  // ==================== ADMIN: RESERVATIONS (OFFLINE & ONLINE) & REVIEWS ====================
   const updateReservationStatus = async (id, status) => {
+    // Jika tiket reservasi offline (penyimpanan sementara localStorage)
+    if (String(id).startsWith('offline-')) {
+      const existing = offlineReservations.find((r) => r.id === id);
+      if (!existing) return { ok: false, error: 'Reservasi offline tidak ditemukan' };
+
+      setOfflineReservations((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? { ...r, status, processedBy: currentUser?.name || 'Admin (Offline)' }
+            : r
+        )
+      );
+
+      if (isOnline && currentUser?.role === 'admin') {
+        showToast('Status diubah, menyinkronkan ke database...', 'info');
+      } else {
+        showToast('Status disimpan sementara (akan masuk database saat online)', 'success');
+      }
+      return { ok: true };
+    }
+
     if (!requireOnline()) return { ok: false, error: 'Offline' };
-    const existing = reservations.find((r) => r.id === id);
+    const existing = dbReservations.find((r) => r.id === id);
     if (!existing) return { ok: false, error: 'Reservasi tidak ditemukan' };
     if (existing.status === 'cancelled' || existing.status === 'completed') {
       showToast('Status reservasi sudah berubah', 'warning');
@@ -934,7 +1089,7 @@ export const AppProvider = ({ children }) => {
       showToast('Gagal memperbarui status reservasi', 'error');
       return { ok: false, error: error.message };
     }
-    setReservations((prev) =>
+    setDbReservations((prev) =>
       prev.map((r) =>
         r.id === id ? { ...r, status, processedBy: currentUser?.name || 'Admin' } : r
       )
@@ -1045,6 +1200,7 @@ export const AppProvider = ({ children }) => {
         cats,
         promos,
         reservations,
+        offlineReservationsCount: offlineReservations.length,
         reviews,
         userFavorites,
         isOnline,
@@ -1067,6 +1223,8 @@ export const AppProvider = ({ children }) => {
         toggleFavoriteCat,
         getSlotBookedGuests,
         createReservation,
+        createOfflineReservation,
+        syncOfflineReservations,
         cancelMyReservation,
         submitReview,
         saveMenuItem,
