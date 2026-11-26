@@ -54,8 +54,14 @@ export const AdminSettingsPage = () => {
       email: cafeInfo.email || '',
       instagram: cafeInfo.instagram || '',
       address: cafeInfo.address || '',
-      latitude: cafeInfo.latitude !== undefined && cafeInfo.latitude !== null ? String(cafeInfo.latitude) : '',
-      longitude: cafeInfo.longitude !== undefined && cafeInfo.longitude !== null ? String(cafeInfo.longitude) : '',
+      latitude:
+        cafeInfo.latitude !== undefined && cafeInfo.latitude !== null
+          ? String(cafeInfo.latitude)
+          : '',
+      longitude:
+        cafeInfo.longitude !== undefined && cafeInfo.longitude !== null
+          ? String(cafeInfo.longitude)
+          : '',
       aboutImageUrl: cafeInfo.aboutImageUrl || cafeInfo.about_image_url || '',
       heroUrl: cafeInfo.heroImage || cafeInfo.heroUrl || '',
       maxCapacity: cafeInfo.maxCapacity || 30,
@@ -106,9 +112,9 @@ export const AdminSettingsPage = () => {
 
   return (
     <AdminLayout title="Profil & Pengaturan Kafe">
-      <form onSubmit={handleSubmit} className="max-w-3xl space-y-6 pb-24">
+      <form onSubmit={handleSubmit} className="max-w-3xl space-y-6 pb-28 lg:pb-12">
         {/* Identitas & Visual */}
-        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-5 sm:p-6 space-y-4">
+        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-4 sm:p-6 space-y-4">
           <h2 className="font-sans font-semibold text-[16px] text-text-primary">
             Identitas & Visual Kafe
           </h2>
@@ -164,7 +170,9 @@ export const AdminSettingsPage = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-[13px] text-text-secondary">URL / File Foto Tentang Kami</label>
+              <label className="block text-[13px] text-text-secondary">
+                URL / File Foto Tentang Kami
+              </label>
               <input
                 type="url"
                 value={form.aboutImageUrl}
@@ -183,7 +191,7 @@ export const AdminSettingsPage = () => {
         </section>
 
         {/* Kontak */}
-        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-5 sm:p-6 space-y-4">
+        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-4 sm:p-6 space-y-4">
           <h2 className="font-sans font-semibold text-[16px] text-text-primary">Kontak & Sosial</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -197,7 +205,9 @@ export const AdminSettingsPage = () => {
               />
             </div>
             <div>
-              <label className="block text-[13px] text-text-secondary mb-1.5">WhatsApp (62...)</label>
+              <label className="block text-[13px] text-text-secondary mb-1.5">
+                WhatsApp (62...)
+              </label>
               <input
                 type="text"
                 value={form.whatsapp}
@@ -227,7 +237,7 @@ export const AdminSettingsPage = () => {
         </section>
 
         {/* Lokasi */}
-        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-5 sm:p-6 space-y-4">
+        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-4 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-sans font-semibold text-[16px] text-text-primary flex items-center gap-2">
               <MapPin className="w-4 h-4 text-accent-500" />
@@ -279,48 +289,52 @@ export const AdminSettingsPage = () => {
           </div>
         </section>
 
-        {/* Jam Operasional */}
-        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-5 sm:p-6 space-y-3">
+        {/* Jam Operasional (Layout responsif: presisi 50:50 di HP & 1 baris rapi di Desktop) */}
+        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-4 sm:p-6 space-y-3.5">
           <h2 className="font-sans font-semibold text-[16px] text-text-primary">Jam Operasional</h2>
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {form.operatingHours.map((h) => {
               const dIdx = h.dayIndex ?? h.dayOfWeek;
               return (
                 <div
                   key={dIdx}
-                  className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-[12px] bg-bg-elevated border border-border-subtle"
+                  className="p-3.5 rounded-[12px] bg-bg-elevated border border-border-subtle flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3"
                 >
-                  <span className="w-24 text-[14px] font-medium text-text-primary">
-                    {h.dayName || DAY_NAMES[dIdx]}
-                  </span>
+                  {/* Baris Atas di HP / Sisi Kiri di Desktop: Nama Hari & Libur */}
+                  <div className="flex items-center justify-between sm:contents">
+                    <span className="sm:w-24 text-[14px] font-semibold sm:font-medium text-text-primary">
+                      {h.dayName || DAY_NAMES[dIdx]}
+                    </span>
 
-                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center gap-2 text-[13px] text-text-secondary cursor-pointer select-none sm:order-3">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(h.isClosed)}
+                        onChange={(e) => handleHourChange(dIdx, 'isClosed', e.target.checked)}
+                        className="w-4 h-4 rounded accent-accent-500 cursor-pointer"
+                      />
+                      <span>Libur</span>
+                    </label>
+                  </div>
+
+                  {/* Baris Bawah di HP / Tengah di Desktop: Jam Buka - Jam Tutup */}
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:flex items-center gap-2 sm:order-2">
                     <input
                       type="time"
                       disabled={h.isClosed}
                       value={h.openTime}
                       onChange={(e) => handleHourChange(dIdx, 'openTime', e.target.value)}
-                      className="h-9 px-2.5 rounded-[8px] bg-bg-surface border border-border-subtle text-[13px] text-text-primary disabled:opacity-40"
+                      className="w-full min-w-0 sm:w-auto h-10 sm:h-9 px-2.5 rounded-[9px] bg-bg-surface border border-border-subtle text-[13px] text-text-primary disabled:opacity-40 focus:outline-none focus:border-accent-500"
                     />
-                    <span className="text-text-muted">–</span>
+                    <span className="text-text-muted text-center">–</span>
                     <input
                       type="time"
                       disabled={h.isClosed}
                       value={h.closeTime}
                       onChange={(e) => handleHourChange(dIdx, 'closeTime', e.target.value)}
-                      className="h-9 px-2.5 rounded-[8px] bg-bg-surface border border-border-subtle text-[13px] text-text-primary disabled:opacity-40"
+                      className="w-full min-w-0 sm:w-auto h-10 sm:h-9 px-2.5 rounded-[9px] bg-bg-surface border border-border-subtle text-[13px] text-text-primary disabled:opacity-40 focus:outline-none focus:border-accent-500"
                     />
                   </div>
-
-                  <label className="inline-flex items-center gap-2 text-[13px] text-text-secondary cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(h.isClosed)}
-                      onChange={(e) => handleHourChange(dIdx, 'isClosed', e.target.checked)}
-                      className="rounded accent-accent-500"
-                    />
-                    Libur
-                  </label>
                 </div>
               );
             })}
@@ -328,7 +342,7 @@ export const AdminSettingsPage = () => {
         </section>
 
         {/* Pengaturan Reservasi */}
-        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-5 sm:p-6 space-y-4">
+        <section className="bg-bg-surface border border-border-subtle rounded-[16px] p-4 sm:p-6 space-y-4">
           <div>
             <h2 className="font-sans font-semibold text-[16px] text-text-primary">
               Pengaturan Reservasi
